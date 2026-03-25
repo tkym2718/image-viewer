@@ -1,0 +1,168 @@
+/* bodyにpaddingを設定し、上下左右のマージンを確保 */
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0;
+    background-color: #000;
+    font-family: sans-serif;
+    overflow: hidden; /* スクロールバーを非表示 */
+    padding: 20px;
+    box-sizing: border-box;
+    color: #eee;
+}
+
+/* 画像コンテナを画面いっぱいに広げる */
+#image-container {
+    width: 100%;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+#image-wrapper {
+    display: flex;
+    height: 100%;
+    width: 100%;
+}
+
+.image-item {
+    flex: 1 1 33.3333%; /* flex-basisを33.33%に */
+    box-sizing: border-box;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    position: relative; /* ファイル名表示のために追加 */
+}
+
+.image-item img {
+    max-width: 100%;
+    max-height: 100%;
+    height: auto;
+    width: auto;
+    object-fit: contain;
+    border: 2px solid #333;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-radius: 8px; /* 角を丸くする */
+}
+
+/* ファイル名表示用のスタイル */
+.filename {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    text-align: center;
+    padding: 8px;
+    border-radius: 0 0 6px 6px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: none; /* マウスイベントが画像に届くように */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ホバー時にファイル名を表示 */
+.image-item:hover .filename {
+    opacity: 1;
+}
+
+.controls {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.controls-left {
+    display: flex;
+    align-items: center;
+}
+
+.controls-right {
+    display: flex;
+    align-items: center;
+}
+
+.slideshow-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#slideshow-btn {
+    min-width: 100px;
+}
+
+#slideshow-btn.playing {
+    background-color: #c0392b;
+    border-color: #e74c3c;
+}
+
+#slideshow-btn.playing:hover {
+    background-color: #e74c3c;
+}
+
+.speed-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #aaa;
+    font-size: 14px;
+}
+
+#speed-slider {
+    width: 100px;
+    cursor: pointer;
+    accent-color: #888;
+}
+
+#speed-value {
+    min-width: 28px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border: 1px solid #eee;
+    background-color: #222;
+    color: #eee;
+    border-radius: 5px;
+    margin: 0 5px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #444;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    background-color: #222;
+    opacity: 0.7;
+}
+
+#page-counter {
+    margin: 0 15px;
+    font-size: 18px;
+    font-weight: bold;
+    display: inline-block;
+    vertical-align: middle;
+    padding: 10px 15px;
+    min-width: 100px;
+    text-align: center;
+    cursor: pointer;
+    color: #eee;
+}

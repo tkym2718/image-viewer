@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>画像ビューア</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="images/icon.png" type="image/png">
+</head>
+
+<body>
+
+    <div class="controls">
+        <div class="controls-left">
+            <input type="file" id="file-input" webkitdirectory directory multiple style="display: none;">
+            <button id="select-folder-btn">フォルダを選択</button>
+            <button id="prev-btn" disabled>前へ</button>
+            <span id="page-counter">0 / 0</span>
+            <button id="next-btn" disabled>次へ</button>
+        </div>
+        <div class="controls-right">
+            <div class="slideshow-controls">
+                <button id="slideshow-btn" disabled>▶ PLAY</button>
+                <label class="speed-label">
+                    <span id="speed-value">3s</span>
+                    <input type="range" id="speed-slider" min="1" max="10" value="3" step="0.5">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div id="image-container">
+        <div id="image-wrapper">
+            <p style="text-align: center; width: 100%;">「フォルダを選択」ボタンから画像フォルダを選んでください。</p>
+        </div>
+    </div>
+
+    <script>
+        const imageWrapper = document.getElementById('image-wrapper');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const pageCounter = document.getElementById('page-counter');
+        const imageContainer = document.getElementById('image-container');
+        const selectFolderBtn = document.getElementById('select-folder-btn');
+        const fileInput = document.getElementById('file-input');
+
+        let allFiles = []; // 選択された全ファイルオブジェクトを保持
+        let imageFiles = []; // 画像ファイルのURLを格納する配列
+        let pages = []; // ページの区切り情報を格納する配列
+        let currentPageIndex = 0; // 現在表示しているページのインデックス
+        const imagesPerPage = 3; // 1ページに表示する画像の最大数
+
+        // スライドショー関連
+        const slideshowBtn = document.getElementById('slideshow-btn');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedValue = document.getElementById('speed-value');
+        let slideshowInterval = null;
+        let isSlideshowPlaying = false;
+
+        // ページカウンターの表示を更新する関数
+        function updatePageCounter() {
+            if (pages.length === 0) {
+                pageCounter.textContent = '0 / 0';
+                return;
+            }
+            // 表示中のページの最初の画像の番号
+            const currentImageNumber = pages[currentPageIndex].start + 1;
+            const totalImages = imageFiles.length;
+            pageCounter.textContent = `${currentImageNumber} / ${totalImages}`;
+        }
+
+        // 表示する画像を更新する関数
+        function updateImages() {
+            if (pages.length === 0) return;
+
+            const currentPage = pages[currentPageIndex];
+            imageWrapper.innerHTML = ''; // 表示をクリア
+
+            for (let i = currentPage.start; i <= currentPage.end; i++) {
+                const src = imageFiles[i];
+                const file = allFiles[i]; // 対応するファイルオブジェクトを取得
+                const div = document.createElement('div');
+                div.classList.add('image-item');
+
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = `画像 ${i + 1}`;
+
+                const filenameDiv = document.createElement('div');
+                filenameDiv.classList.add('filename');
+                filenameDiv.textContent = file.name; // ファイル名を設定
+
+                div.appendChild(img);
+                div.appendChild(filenameDiv); // ファイル名要素を追加
+                imageWrapper.appendChild(div);
+            }
+            updatePageCounter();
+        }
+
+        // フォルダ選択ボタンのクリックイベント
+        selectFolderBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // ファイルが選択されたときの処理
+        fileInput.addEventListener('change', (event) => {
+            const files = event.target.files;
+            if (files.length === 0) return;
+
+            // 対応する拡張子のファイルのみをフィルタリング
+            const imageFileObjects = Array.from(files).filter(file => /\.(webp|jpg|jpeg|png)$/i.test(file.name));
+
+            if (imageFileObjects.length === 0) {
+                imageWrapper.innerHTML = '<p style="text-align: center; width: 100%;">対応する画像ファイル（.webp, .jpg, .png）が見つかりませんでした。</p>';
+                return;
+            }
+
+            // フォルダ名を取得してタイトルを更新
+            if (imageFileObjects.length > 0) {
+                const firstFilePath = imageFileObjects[0].webkitRelativePath;
+                const folderName = firstFilePath.split('/')[0];
+                document.title = folderName;
+            }
+
+            // フォルダごとにファイルをグループ化
+            const folders = {};
+            const rootDir = imageFileObjects[0].webkitRelativePath.split('/')[0]; // ルートディレクトリ名
+            imageFileObjects.forEach(file => {
+                const pathParts = file.webkitRelativePath.split('/');
+                const dir = pathParts.slice(0, -1).join('/'); // ファイル名を除いたパスをキーとする
+                if (!folders[dir]) {
+                    folders[dir] = [];
+                }
+                folders[dir].push(file);
+            });
+
+            // 各フォルダ内でファイルを日付時刻順（降順：新しい順）にソート
+            Object.values(folders).forEach(filesInFolder => {
+                filesInFolder.sort((a, b) => b.lastModified - a.lastModified);
+            });
+
+            // ルート直下のファイルとサブフォルダを分離
+            const subfolderPaths = Object.keys(folders).filter(path => path !== rootDir);
+            const hasRootFiles = folders[rootDir] && folders[rootDir].length > 0;
+
+            // サブフォルダを最新ファイルの日時で降順（新しい順）にソート
+            subfolderPaths.sort((a, b) => {
+                const aNewest = folders[a][0].lastModified; // 降順ソート済みなので先頭が最新
+                const bNewest = folders[b][0].lastModified;
+                return bNewest - aNewest;
+            });
+
+            // サブフォルダのファイルを先に、ルート直下のファイルを後に結合
+            const sortedFolderPaths = [...subfolderPaths];
+            if (hasRootFiles) {
+                sortedFolderPaths.push(rootDir);
+            }
+
+            let sortedFiles = [];
+            sortedFolderPaths.forEach(path => {
+                sortedFiles = sortedFiles.concat(folders[path]);
+            });
+
+            // 以前のオブジェクトURLを解放
+            imageFiles.forEach(url => URL.revokeObjectURL(url));
+            allFiles = sortedFiles; // ファイルオブジェクトのリストを保持
+
+            // ファイルオブジェクトからURLを生成
+            imageFiles = sortedFiles.map(file => URL.createObjectURL(file));
+
+            // ページ情報を生成
+            pages = [];
+            let fileIndex = 0;
+            sortedFolderPaths.forEach(path => {
+                const filesInFolder = folders[path];
+                const folderStartIndex = fileIndex;
+                const folderEndIndex = folderStartIndex + filesInFolder.length;
+
+                for (let i = folderStartIndex; i < folderEndIndex; i += imagesPerPage) {
+                    const pageStartIndex = i;
+                    const pageEndIndex = Math.min(i + imagesPerPage - 1, folderEndIndex - 1);
+                    pages.push({ start: pageStartIndex, end: pageEndIndex });
+                }
+                fileIndex = folderEndIndex;
+            });
+
+            // 表示を初期化
+            currentPageIndex = 0;
+            if (pages.length > 0) {
+                prevBtn.disabled = false;
+                nextBtn.disabled = false;
+                slideshowBtn.disabled = false;
+                updateImages();
+            } else {
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                slideshowBtn.disabled = true;
+                stopSlideshow();
+                updatePageCounter();
+            }
+        });
+
+
+        // 「前へ」ボタン
+        prevBtn.addEventListener('click', () => {
+            if (pages.length === 0) return;
+            currentPageIndex--;
+            if (currentPageIndex < 0) {
+                currentPageIndex = pages.length - 1; // 最後のページへ
+            }
+            updateImages();
+        });
+
+        // 「次へ」ボタン
+        nextBtn.addEventListener('click', () => {
+            if (pages.length === 0) return;
+            currentPageIndex++;
+            if (currentPageIndex >= pages.length) {
+                currentPageIndex = 0; // 最初のページへ
+            }
+            updateImages();
+        });
+
+        // ページカウンターをクリックして番号でジャンプする機能
+        pageCounter.addEventListener('click', () => {
+            if (imageFiles.length === 0) return;
+            const totalImages = imageFiles.length;
+            const inputImageNumber = prompt(`表示したい画像番号を入力してください (1 - ${totalImages})`);
+            const imageNumber = parseInt(inputImageNumber, 10);
+
+            if (!isNaN(imageNumber) && imageNumber >= 1 && imageNumber <= totalImages) {
+                const targetImageIndex = imageNumber - 1;
+                // 対象の画像番号が含まれるページを探す
+                const newPageIndex = pages.findIndex(page => targetImageIndex >= page.start && targetImageIndex <= page.end);
+
+                if (newPageIndex !== -1) {
+                    currentPageIndex = newPageIndex;
+                    updateImages();
+                }
+            } else if (inputImageNumber !== null) {
+                console.log('無効な画像番号です。');
+            }
+        });
+
+        // マウスホイールでのページ送り
+        imageContainer.addEventListener('wheel', (event) => {
+            if (pages.length === 0) return;
+            event.preventDefault();
+            if (event.deltaY > 0) {
+                nextBtn.click();
+            } else if (event.deltaY < 0) {
+                prevBtn.click();
+            }
+        });
+
+        // キーボードの矢印キーでのページ送り
+        document.addEventListener('keydown', (event) => {
+            if (pages.length === 0) return;
+            if (event.key === 'ArrowRight') {
+                nextBtn.click();
+            } else if (event.key === 'ArrowLeft') {
+                prevBtn.click();
+            }
+        });
+
+        // スライドショー機能
+        function startSlideshow() {
+            if (pages.length === 0) return;
+            isSlideshowPlaying = true;
+            slideshowBtn.textContent = '■ STOP';
+            slideshowBtn.classList.add('playing');
+            const interval = parseFloat(speedSlider.value) * 1000;
+            slideshowInterval = setInterval(() => {
+                currentPageIndex++;
+                if (currentPageIndex >= pages.length) {
+                    currentPageIndex = 0;
+                }
+                updateImages();
+            }, interval);
+        }
+
+        function stopSlideshow() {
+            isSlideshowPlaying = false;
+            slideshowBtn.textContent = '▶ PLAY';
+            slideshowBtn.classList.remove('playing');
+            if (slideshowInterval) {
+                clearInterval(slideshowInterval);
+                slideshowInterval = null;
+            }
+        }
+
+        slideshowBtn.addEventListener('click', () => {
+            if (isSlideshowPlaying) {
+                stopSlideshow();
+            } else {
+                startSlideshow();
+            }
+        });
+
+        // 速度スライダーの変更
+        speedSlider.addEventListener('input', () => {
+            speedValue.textContent = speedSlider.value + 's';
+            // 再生中なら再起動して新しい速度を適用
+            if (isSlideshowPlaying) {
+                stopSlideshow();
+                startSlideshow();
+            }
+        });
+
+    </script>
+</body>
+
+</html>
